@@ -1,0 +1,21 @@
+{
+  "name": "com.sliddes.ss3d",
+  "version": "0.0.1",
+  "displayName": "SLIDDES SS3D",
+  "description": "SLIDDES Side Scroller 3D Editor.\n\nAccess: Window > SLIDDES > Level Editor > SS3D",
+  "unity": "2020.1",
+  "unityRelease": "0b5",
+  "keywords": [
+    "sliddes",
+    "SLIDDES",
+    "Screen",
+    "Shot",
+    "ScreenShot"
+  ],
+  "author": {
+    "name": "SLIDDES",
+    "email": "supp.sliddes@gmail.com",
+    "url": "https://www.sliddes.com"
+  },
+  "type": "tool"
+}
