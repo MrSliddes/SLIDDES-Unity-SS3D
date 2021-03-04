@@ -1,6 +1,6 @@
 {
   "name": "com.sliddes.ss3d",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "displayName": "SLIDDES SS3D",
   "description": "SLIDDES Side Scroller 3D Editor.\n\nAccess: Window > SLIDDES > Level Editor > SS3D",
   "unity": "2020.1",

@@ -26,7 +26,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// <summary>
         /// The object to create when clicking
         /// </summary>
-        private GameObject objectToCreate;
+        private Object objectToCreate;
 
         // Editor
         private readonly int editorSpacePixels = 10;
@@ -42,15 +42,36 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// Used for editor scrollbar
         /// </summary>
         private Vector2 editorScrollPosition;
+
         private bool editorFoldoutTool = true;
         private bool editorFoldoutAssets = true;
         private bool editorFoldoutSettings;
+
+        /// <summary>
+        /// Show all z layer indexes
+        /// </summary>
         private bool showAllZLayers;
         private int searchbarResultAmount;
+        /// <summary>
+        /// The type index of view the user wants to display the assets in the editorwindow
+        /// </summary>
         private int currentAssetViewIndex;
+        /// <summary>
+        /// Int used to check if user wants to increase or decrease z layer index
+        /// </summary>
+        private int currentZLayerIncreaseIndex;
 
+        /// <summary>
+        /// The Vector3.z int for placing objects in the scene
+        /// </summary>
         private int zLayerIndex;
+        /// <summary>
+        /// The file directory of assets to be used
+        /// </summary>
         private string assetsFileDirectory;
+        /// <summary>
+        /// Default reset file directory string
+        /// </summary>
         private readonly string assetFileDirectoryDefault = "Assets/Prefabs/Level Editor";
 
         #region EIEM vars
@@ -104,17 +125,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             SceneView.duringSceneGui -= OnSceneGUI;
         }
 
-        private void OnFocus()
-        {
-            // Remove delegate listener if it has previously been assigned. (Not thread save?)
-            //SceneView.duringSceneGui -= this.OnSceneGUI;
-            // Add (or re-add) the delegate.
-            //SceneView.duringSceneGui += this.OnSceneGUI;
-
-            // Based on SS3DEIEM currentToolIndex update this one
-            //NewToolIndex(SS3DEIEM.currentToolIndex);
-        }
-
         #endregion
 
         /// <summary>
@@ -127,7 +137,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             editorScrollPosition = EditorGUILayout.BeginScrollView(editorScrollPosition);
             EditorGUILayout.Space();
 
-
+            // TODO test if this works?
             #region Events
             Event e = Event.current;
 
@@ -178,6 +188,17 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 int prevLayerIndex = zLayerIndex; // Prevent updating zLayerVisablity every frame
                 zLayerIndex = EditorGUILayout.IntField("Z", zLayerIndex);
                 if(zLayerIndex != prevLayerIndex) UpdateZLayerVisability();
+                // Z index arrow buttons
+                g = new GUIContent[] { new GUIContent("", Resources.Load<Texture2D>("d_tab_prev"), "-1 Z Layer"),
+                                        new GUIContent("", Resources.Load<Texture2D>("d_tab_next"), "+1 Z Layer" )};
+                int prev = currentZLayerIncreaseIndex = 2;
+                currentZLayerIncreaseIndex = GUILayout.Toolbar(2, g, GUILayout.MaxWidth(50));
+                if(prev != currentZLayerIncreaseIndex)
+                {
+                    // Increase or decrease z layer index by 1
+                    if(currentZLayerIncreaseIndex == 0) zLayerIndex--;
+                    else if(currentZLayerIncreaseIndex == 1) zLayerIndex++;
+                }
                 // Z index layer visablility
                 Texture2D tEye; if(showAllZLayers) tEye = Resources.Load<Texture2D>("d_scenevis_visible_hover"); else tEye = Resources.Load<Texture2D>("d_scenevis_hidden_hover");
                 if(GUILayout.Button(new GUIContent("", tEye, "Show All Z Layers Or Only Current Layer")))
@@ -417,7 +438,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// <param name="item"></param>
         private void CreateItemButton(string assetPath)
         {
-            GameObject item = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(assetPath), typeof(GameObject)) as GameObject;
+            Object item = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(assetPath), typeof(Object));
 
             // Hide button if searchbarResult is not the same
             if(searchbarResult != "")
@@ -447,7 +468,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         }
                         else
                         {
-                            objectToCreate = Resources.Load<Object>(assetPath) as GameObject;
+                            objectToCreate = item;
                         }
                         Repaint();
                     }
@@ -473,7 +494,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         }
                         else
                         {
-                            objectToCreate = Resources.Load<Object>(assetPath) as GameObject;
+                            objectToCreate = item;
                         }
                         Repaint();
                     }
@@ -506,24 +527,23 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// </summary>
         private void UpdateZLayerVisability()
         {
-            //if(SS3DEIEM.Instance == null) Debug.LogError("No Toolbar 0 EIEM found!");
-            //if(showAllZLayers)
-            //{
-            //    // Show all
-            //    foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
-            //    {
-            //        child.gameObject.SetActive(true);
-            //    }
-            //}
-            //else
-            //{
-            //    // Hide all but 1
-            //    foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
-            //    {
-            //        child.gameObject.SetActive(false);
-            //    }
-            //    SS3DEIEM.Instance.parentOfItems.Find(zLayerIndex.ToString())?.gameObject.SetActive(true);
-            //}
+            if(showAllZLayers)
+            {
+                // Show all
+                foreach(Transform child in parentOfItems)
+                {
+                    child.gameObject.SetActive(true);
+                }
+            }
+            else
+            {
+                // Hide all but 1
+                foreach(Transform child in parentOfItems)
+                {
+                    child.gameObject.SetActive(false);
+                }
+                parentOfItems.Find(zLayerIndex.ToString())?.gameObject.SetActive(true);
+            }
         }
 
         #endregion
@@ -603,7 +623,10 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             // Place item                
             if(objectToCreate != null)
             {
-                GameObject a = Instantiate(objectToCreate, mousePositionScene, Quaternion.identity);
+                //GameObject a = Instantiate(objectToCreate, mousePositionScene, Quaternion.identity) as GameObject;
+                GameObject a = PrefabUtility.InstantiatePrefab(objectToCreate) as GameObject;
+                a.transform.position = mousePositionScene;
+                a.transform.rotation = Quaternion.identity;
 
                 if(parentOfItems == null) CreateParentItems();
 
