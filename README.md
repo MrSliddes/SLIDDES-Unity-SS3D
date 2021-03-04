@@ -3,7 +3,6 @@ SLIDDES © 2020-2100
 
 ## About
 This current package is still a wip so expect it to be buggy.
-It currently does not work outside the box, as I still need to think about a solution between an Editor script and Runtime script.
 
 Hello and thank you for using SLIDDES Software.
 

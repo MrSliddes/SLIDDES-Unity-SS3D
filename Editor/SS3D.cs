@@ -26,7 +26,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// <summary>
         /// The object to create when clicking
         /// </summary>
-        public static GameObject objectToCreate;
+        private GameObject objectToCreate;
 
         // Editor
         private readonly int editorSpacePixels = 10;
@@ -53,6 +53,24 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         private string assetsFileDirectory;
         private readonly string assetFileDirectoryDefault = "Assets/Prefabs/Level Editor";
 
+        #region EIEM vars
+
+        /// <summary>
+        /// The parent of all created items
+        /// </summary>
+        public Transform parentOfItems;
+
+        /// <summary>
+        /// Current mouse position of sceneView in world position
+        /// </summary>
+        public Vector3 mousePositionScene;
+        /// <summary>
+        /// Current mouse GUIPoint position
+        /// </summary>
+        public Vector3 mousePositionGUIPoint;
+
+        #endregion
+
 
         [MenuItem("Window/SLIDDES/Level Editor/Side Scroller 3D", false)]
         public static void ShowWindow()
@@ -74,6 +92,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         private void OnEnable()
         {
             objectToCreate = null;
+            SceneView.duringSceneGui += OnSceneGUI;
         }
 
         private void OnDestroy()
@@ -82,15 +101,15 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             if(refSS3DEIEM != null) DestroyImmediate(refSS3DEIEM);
             
             // When the window is destroyed, remove the delegate
-            SceneView.duringSceneGui -= this.OnSceneGUI;
+            SceneView.duringSceneGui -= OnSceneGUI;
         }
 
         private void OnFocus()
         {
             // Remove delegate listener if it has previously been assigned. (Not thread save?)
-            SceneView.duringSceneGui -= this.OnSceneGUI;
+            //SceneView.duringSceneGui -= this.OnSceneGUI;
             // Add (or re-add) the delegate.
-            SceneView.duringSceneGui += this.OnSceneGUI;
+            //SceneView.duringSceneGui += this.OnSceneGUI;
 
             // Based on SS3DEIEM currentToolIndex update this one
             //NewToolIndex(SS3DEIEM.currentToolIndex);
@@ -98,6 +117,9 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
         #endregion
 
+        /// <summary>
+        /// Editor Window Code
+        /// </summary>
         public void OnGUI()
         {
             // Window code goes here
@@ -105,30 +127,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             editorScrollPosition = EditorGUILayout.BeginScrollView(editorScrollPosition);
             EditorGUILayout.Space();
 
-            // Object that runs in editor mode (allows user to create objects while in edit mode)
-            if(SS3DEIEM.Instance == null)
-            {
-                // Link old
-                if(refSS3DEIEM != null)
-                {
-                    SS3DEIEM.Instance = refSS3DEIEM.GetComponent<SS3DEIEM>();
-                }
-                // Check for existing
-                else if(FindObjectOfType<SS3DEIEM>() != null)
-                {
-                    SS3DEIEM.Instance = FindObjectOfType<SS3DEIEM>();
-                }
-                else
-                {
-                    // Create new reference object
-                    refSS3DEIEM = new GameObject();
-                    refSS3DEIEM.transform.position = Vector3.zero;
-                    refSS3DEIEM.name = "[SS3D] Temporary GameObject";
-                    refSS3DEIEM.AddComponent<SS3DEIEM>();
-                    SS3DEIEM.Instance = refSS3DEIEM.GetComponent<SS3DEIEM>();
-                }
-
-            }
 
             #region Events
             Event e = Event.current;
@@ -164,7 +162,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 if(GUILayout.Button(new GUIContent("In Use", "Toggle Editor On/Off"), GUILayout.Width(100)))
                 {
                     inUse = !inUse;
-                    SS3DEIEM.inUse = inUse;
                 }
                 GUI.color = c;
                 EditorGUILayout.Space(10);
@@ -180,7 +177,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 EditorGUIUtility.fieldWidth = 35;
                 int prevLayerIndex = zLayerIndex; // Prevent updating zLayerVisablity every frame
                 zLayerIndex = EditorGUILayout.IntField("Z", zLayerIndex);
-                SS3DEIEM.Instance.zIndex = zLayerIndex;
                 if(zLayerIndex != prevLayerIndex) UpdateZLayerVisability();
                 // Z index layer visablility
                 Texture2D tEye; if(showAllZLayers) tEye = Resources.Load<Texture2D>("d_scenevis_visible_hover"); else tEye = Resources.Load<Texture2D>("d_scenevis_hidden_hover");
@@ -268,7 +264,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                                     closedLayout = false;
                                 }
                                 prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
-                                CreateItemButton(prefabs[i]);
+                                CreateItemButton(folderContent[i]);
                                 if(closer <= 0)
                                 {
                                     EditorGUILayout.EndHorizontal();
@@ -283,7 +279,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                             for(int i = 0; i < folderContent.Length; i++)
                             {
                                 prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
-                                CreateItemButton(prefabs[i]);
+                                CreateItemButton(folderContent[i]);
                             }
                             break;
                         default:
@@ -332,6 +328,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
         private void OnSceneGUI(SceneView sceneView)
         {
+            if(!inUse) return;
+
             // Do your drawing here using Handles.
             Handles.BeginGUI();
             // Do your drawing here using GUI.
@@ -342,21 +340,85 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     inUse = false;
                 }
             }
-            // Event
+            Handles.EndGUI();
+
+            #region EIEM
+
+            //Cursor.SetCursor(Resources.Load<Texture2D>("d_eyeDropper.Large"), Vector2.zero, CursorMode.Auto); causes flikkering
             Event e = Event.current;
+
+            if(e.type != EventType.MouseLeaveWindow) // Prevent Screen position out of view frustum Error
+            {
+                GetMousePositionScene(sceneView);
+            }
+            else return;
+            // move custom gameobject here to show mousepos as alternative of Gizmos
+
+            // Get values
+            var controlID = GUIUtility.GetControlID(FocusType.Passive);
+            var eventType = e.GetTypeForControl(controlID);
+
+            // Left mouse button
+            if(e.button == 0)
+            {
+                if(eventType == EventType.MouseUp)
+                {
+                    //Debug.Log("Mouse Up!");
+                    GUIUtility.hotControl = controlID;
+                }
+                else if(eventType == EventType.MouseDrag)
+                {
+                    //Debug.Log("Mouse Drag!");
+                    //e.Use();
+                    switch(currentToolIndex)
+                    {
+                        case 0: PlaceItem(sceneView); break;
+                        case 1: RemoveItem(e, sceneView); break;
+                        default: Debug.LogError("toolindex"); break;
+                    }
+                }
+                else if(eventType == EventType.MouseDown)
+                {
+                    //Debug.Log("Mouse Down!");
+                    GUIUtility.hotControl = 0;
+                    //e.Use();
+                    switch(currentToolIndex)
+                    {
+                        case 0: PlaceItem(sceneView); break;
+                        case 1: RemoveItem(e, sceneView); break;
+                        default: Debug.LogError("toolindex"); break;
+                    }
+                }
+            }
+
+            // Key triggers
+            e = Event.current;
             if(e.type == EventType.KeyDown)
             {
                 if(e.keyCode == KeyCode.F6) inUse = !inUse;
+                else if(e.keyCode == KeyCode.B)
+                {
+                    currentToolIndex = 0;
+                }
+                else if(e.keyCode == KeyCode.D)
+                {
+                    currentToolIndex = 1;
+                }
             }
-            Handles.EndGUI();
+
+            #endregion
         }
+
+        #region Editor Window Functions
 
         /// <summary>
         /// Create selectable GUI button
         /// </summary>
         /// <param name="item"></param>
-        private void CreateItemButton(GameObject item)
+        private void CreateItemButton(string assetPath)
         {
+            GameObject item = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(assetPath), typeof(GameObject)) as GameObject;
+
             // Hide button if searchbarResult is not the same
             if(searchbarResult != "")
             {
@@ -385,9 +447,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         }
                         else
                         {
-                            objectToCreate = item;
+                            objectToCreate = Resources.Load<Object>(assetPath) as GameObject;
                         }
-                        SS3DEIEM.objectToCreate = objectToCreate;
                         Repaint();
                     }
                     EditorStyles.label.wordWrap = true;
@@ -412,9 +473,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         }
                         else
                         {
-                            objectToCreate = item;
+                            objectToCreate = Resources.Load<Object>(assetPath) as GameObject;
                         }
-                        SS3DEIEM.objectToCreate = objectToCreate;
                         Repaint();
                     }
                     EditorStyles.label.wordWrap = true;
@@ -434,10 +494,10 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         private void NewToolIndex(int newIndex)
         {
             // Ignore if SS3DEIEM updated its currentToolIndex
-            if(currentToolIndex != SS3DEIEM.currentToolIndex) return;
+            //if(currentToolIndex != SS3DEIEM.currentToolIndex) return;
 
             currentToolIndex = newIndex;
-            SS3DEIEM.currentToolIndex = newIndex;
+            //SS3DEIEM.currentToolIndex = newIndex;
             Repaint();
         }
 
@@ -446,25 +506,151 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// </summary>
         private void UpdateZLayerVisability()
         {
-            if(SS3DEIEM.Instance == null) Debug.LogError("No Toolbar 0 EIEM found!");            
-            if(showAllZLayers)
+            //if(SS3DEIEM.Instance == null) Debug.LogError("No Toolbar 0 EIEM found!");
+            //if(showAllZLayers)
+            //{
+            //    // Show all
+            //    foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
+            //    {
+            //        child.gameObject.SetActive(true);
+            //    }
+            //}
+            //else
+            //{
+            //    // Hide all but 1
+            //    foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
+            //    {
+            //        child.gameObject.SetActive(false);
+            //    }
+            //    SS3DEIEM.Instance.parentOfItems.Find(zLayerIndex.ToString())?.gameObject.SetActive(true);
+            //}
+        }
+
+        #endregion
+
+        #region EIEM Functions
+
+        private void CreateParentItems()
+        {
+            GameObject parent = GameObject.Find("[SS3D] Parent");
+            if(parent == null)
             {
-                // Show all
-                foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
-                {
-                    child.gameObject.SetActive(true);
-                }
+                // Create parent
+                parent = new GameObject();
+                parent.name = "[SS3D] Parent";
+                parent.transform.position = Vector3.zero;
+                parentOfItems = parent.transform;
             }
             else
             {
-                // Hide all but 1
-                foreach(Transform child in SS3DEIEM.Instance.parentOfItems)
-                {
-                    child.gameObject.SetActive(false);
-                }
-                SS3DEIEM.Instance.parentOfItems.Find(zLayerIndex.ToString())?.gameObject.SetActive(true);
+                // Assign existing parent
+                parentOfItems = parent.transform;
             }
         }
+
+        private void GetMousePositionScene(SceneView scene)
+        {
+            Vector3 mousePosition = Event.current.mousePosition;
+
+            // Check if mousePosition is in sceneView
+            if(mousePosition.x >= 0 && mousePosition.x <= scene.camera.pixelWidth && mousePosition.y >= 0 && mousePosition.y <= scene.camera.pixelHeight) { } else return;
+            mousePositionGUIPoint = mousePosition;
+            Ray ray = HandleUtility.GUIPointToWorldRay(mousePositionGUIPoint);
+
+            mousePositionScene = ray.origin;
+            mousePositionScene = SnapToGrid(mousePositionScene) - new Vector3(0.5f, 0.5f, 0);
+            mousePositionScene.z = zLayerIndex;
+        }
+
+        private Vector3 SnapToGrid(Vector3 v)
+        {
+            Vector3 gridPos = v;
+            int gridSize = 1;
+            gridPos.x = Mathf.Round(v.x / gridSize) * gridSize + gridSize / 2f;
+            gridPos.y = Mathf.Round(v.y / gridSize) * gridSize + gridSize / 2f;
+            return gridPos;
+        }
+
+        /// <summary>
+        /// Check if the position under mouse world space is occupied by gameobject
+        /// </summary>
+        /// <returns></returns>
+        private bool PositionIsOccupied(SceneView scene)
+        {
+            Ray ray = HandleUtility.GUIPointToWorldRay(mousePositionGUIPoint);
+
+            RaycastHit hit;
+            if(Physics.Raycast(ray, out hit))
+            {
+                if(hit.transform.gameObject != null)
+                {
+                    //print(hit.transform.gameObject.name);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+
+        #region OnScene Functions
+
+        private void PlaceItem(SceneView scene)
+        {
+
+            if(PositionIsOccupied(scene)) return;
+
+            // Place item                
+            if(objectToCreate != null)
+            {
+                GameObject a = Instantiate(objectToCreate, mousePositionScene, Quaternion.identity);
+
+                if(parentOfItems == null) CreateParentItems();
+
+                // Find parent layer zIndex
+                Transform t = parentOfItems.Find(mousePositionScene.z.ToString());
+                if(t == null)
+                {
+                    // Create parent child
+                    GameObject b = new GameObject(mousePositionScene.z.ToString());
+                    b.transform.SetParent(parentOfItems);
+                    t = b.transform;
+                }
+
+                a.transform.SetParent(t);
+                Undo.RegisterCreatedObjectUndo(a, "Created " + a.name); // Add to undo stack
+            }
+            else
+            {
+                Debug.LogWarning("[SS3D] Please select an object from the 'Assets' dropdown to place.");
+            }
+        }
+
+        private void RemoveItem(Event e, SceneView scene)
+        {
+            Vector3 mousePos = e.mousePosition;
+            float ppp = EditorGUIUtility.pixelsPerPoint;
+            mousePos.y = scene.camera.pixelHeight - mousePos.y * ppp;
+            mousePos.x *= ppp;
+
+            Ray ray = scene.camera.ScreenPointToRay(mousePos);
+            RaycastHit hit;
+
+            if(Physics.Raycast(ray, out hit))
+            {
+                // Check if hit is in same current layer
+                if(hit.transform.parent != null && hit.transform.parent.name == mousePositionScene.z.ToString())
+                {
+                    Undo.DestroyObjectImmediate(hit.transform.gameObject);
+                }
+            }
+        }
+
+
+        #endregion
+
+
+        #endregion
     }
 }
 
