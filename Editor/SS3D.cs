@@ -13,16 +13,16 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// <summary>
         /// Is this toolbar currently inUse?
         /// </summary>
-        public static bool inUse;
+        private bool inUse;
+        /// <summary>
+        /// Was the editor inUse before the user stated play mode?
+        /// </summary>
+        private bool inUseBeforePlayMode;
         /// <summary>
         /// The current tool selected (draw, erase, etc)
         /// </summary>
-        public static int currentToolIndex;
+        private int currentToolIndex;
 
-        /// <summary>
-        /// Reference to the toolbar_0_ExecuteInEditMode GameObject in the scene
-        /// </summary>
-        public GameObject refSS3DEIEM;
         /// <summary>
         /// The object to create when clicking
         /// </summary>
@@ -39,10 +39,14 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// </summary>
         private Vector2 editorAssetDisplaySize = new Vector2(48, 48);
         /// <summary>
+        /// The size of the asset text box
+        /// </summary>
+        private Vector2 editorAssetTextDisplaySize = new Vector2(48, 48);
+        /// <summary>
         /// Used for editor scrollbar
         /// </summary>
         private Vector2 editorScrollPosition;
-
+        
         private bool editorFoldoutTool = true;
         private bool editorFoldoutAssets = true;
         private bool editorFoldoutSettings;
@@ -74,6 +78,11 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// </summary>
         private readonly string assetFileDirectoryDefault = "Assets/Prefabs/Level Editor";
 
+        /// <summary>
+        /// If the editor should show a gui button toggle for the editor in the scene view even if inUse is false
+        /// </summary>
+        private bool settingsAlwaysShowGUIEditorButton = true;
+
         #region EIEM vars
 
         /// <summary>
@@ -92,20 +101,25 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
         #endregion
 
+        // Multiple use vars
+        private string s;
+        private Color c;
+        private GUIContent guiContent;
+        private GUIContent[] guiContents;
 
         [MenuItem("Window/SLIDDES/Level Editor/Side Scroller 3D", false)]
         public static void ShowWindow()
         {
             //Show existing window instance. If one doesn't exist, make one.
             EditorWindow window = GetWindow(typeof(SS3D), false, "SS3D", true); // Name
-            window.minSize = new Vector2(500, 140);
+            window.minSize = new Vector2(500, 150);
         }
 
         private void Awake()
         {
-            inUse = true;
-            // Load values
-            assetsFileDirectory = EditorPrefs.GetString("toolbar_0_fileDirectory", assetFileDirectoryDefault);
+            // Load EditorPrefs
+            assetsFileDirectory = EditorPrefs.GetString("ss3d_assetsFileDirectory", assetFileDirectoryDefault);
+            currentAssetViewIndex = EditorPrefs.GetInt("ss3d_currentAssetViewIndex", 0);
         }
 
         #region OnEnable, OnDestroy, OnFocus
@@ -113,16 +127,23 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         private void OnEnable()
         {
             objectToCreate = null;
+
+            // Add callbacks
             SceneView.duringSceneGui += OnSceneGUI;
+            EditorApplication.playModeStateChanged += PlayModeChanged;
         }
 
         private void OnDestroy()
         {
             inUse = false;
-            if(refSS3DEIEM != null) DestroyImmediate(refSS3DEIEM);
             
-            // When the window is destroyed, remove the delegate
+            // Remove callbacks
             SceneView.duringSceneGui -= OnSceneGUI;
+            EditorApplication.playModeStateChanged -= PlayModeChanged;
+
+            // Save EditorPrefs
+            EditorPrefs.SetString("ss3d_assetsFileDirectory", assetsFileDirectory);
+            EditorPrefs.SetInt("ss3d_currentAssetViewIndex", currentAssetViewIndex);
         }
 
         #endregion
@@ -137,16 +158,13 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             editorScrollPosition = EditorGUILayout.BeginScrollView(editorScrollPosition);
             EditorGUILayout.Space();
 
-            // TODO test if this works?
             #region Events
             Event e = Event.current;
 
-            if(e.isKey)
+            // Hotkeys
+            if(e.isKey && e.type == EventType.KeyDown)
             {
-                if(e.type == EventType.KeyDown)
-                {
-                    if(e.keyCode == KeyCode.F6) inUse = !inUse;
-                }
+                if(e.keyCode == KeyCode.F6) inUse = !inUse;                
                 else if(e.keyCode == KeyCode.B)
                 {
                     NewToolIndex(0);
@@ -167,7 +185,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             {
                 EditorGUILayout.BeginHorizontal();
                 // In use button
-                Color c = GUI.color;
+                c = GUI.color;
                 if(inUse) GUI.color = Color.green; else GUI.color = Color.red;
                 if(GUILayout.Button(new GUIContent("In Use", "Toggle Editor On/Off"), GUILayout.Width(100)))
                 {
@@ -198,6 +216,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     // Increase or decrease z layer index by 1
                     if(currentZLayerIncreaseIndex == 0) zLayerIndex--;
                     else if(currentZLayerIncreaseIndex == 1) zLayerIndex++;
+                    UpdateZLayerVisability();
                 }
                 // Z index layer visablility
                 Texture2D tEye; if(showAllZLayers) tEye = Resources.Load<Texture2D>("d_scenevis_visible_hover"); else tEye = Resources.Load<Texture2D>("d_scenevis_hidden_hover");
@@ -209,7 +228,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 EditorGUILayout.Space();
 
                 // 2D view button
-                if(GUILayout.Button("2D View", GUILayout.Width(60)))
+                guiContent = new GUIContent("", Resources.Load<Texture2D>("d_SceneView2D"), "Toggle 2D View Scene");
+                if(GUILayout.Button(guiContent, new GUILayoutOption[] { GUILayout.MinHeight(20), GUILayout.MinWidth(20)}))
                 {
                     // This stuff apperently cannot auto run, disabled 
                     if(!GetWindow<SceneView>().in2DMode)
@@ -253,7 +273,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     if(GUILayout.Button(new GUIContent("", Resources.Load<Texture2D>("d_UnityEditor.SceneHierarchyWindow"), "Change View Layout")))
                     {
                         currentAssetViewIndex++;
-                        if(currentAssetViewIndex > 1) currentAssetViewIndex = 0;
+                        if(currentAssetViewIndex > 2) currentAssetViewIndex = 0;
                     }
                     // Display loaded assets amount
                     EditorGUILayout.LabelField("Loaded: " + folderContent.Length + " Assets", EditorStyles.helpBox);
@@ -293,7 +313,11 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                                     closedLayout = true;
                                 }
                             }
-                            if(!closedLayout) EditorGUILayout.EndHorizontal();
+                            if(!closedLayout)
+                            {
+                                GUILayout.FlexibleSpace(); // Aligns object to the left
+                                EditorGUILayout.EndHorizontal();
+                            }
                             break;
                         case 1:
                             // Display vertically
@@ -303,8 +327,15 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                                 CreateItemButton(folderContent[i]);
                             }
                             break;
-                        default:
+                        case 2:
+                            // Display vertically, name only
+                            for(int i = 0; i < folderContent.Length; i++)
+                            {
+                                prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
+                                CreateItemButton(folderContent[i]);
+                            }
                             break;
+                        default: Debug.LogWarning("[SS3D] Something whent wrong with setting the current Asset view. Setting it on default 0."); currentAssetViewIndex = 0; break;
                     }
 
                     EditorGUILayout.EndVertical();
@@ -320,9 +351,10 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
             if(editorFoldoutSettings)
             {
+                EditorGUIUtility.labelWidth = 300;
+
                 // File directory
                 EditorGUILayout.BeginHorizontal();
-                EditorGUIUtility.labelWidth = 80;
                 assetsFileDirectory = EditorGUILayout.DelayedTextField("Asset Folder", assetsFileDirectory);
                 if(string.IsNullOrEmpty(assetsFileDirectory) || string.IsNullOrWhiteSpace(assetsFileDirectory)) assetsFileDirectory = assetFileDirectoryDefault;
                 if(GUILayout.Button("Reset", GUILayout.Width(45)))
@@ -337,6 +369,10 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     // Display warning message
                     EditorGUILayout.HelpBox("Folder not found at: " + assetsFileDirectory, MessageType.Error);
                 }
+
+                // Show GUI button
+                guiContent = new GUIContent("Always Show GUI Editor Button", "");
+                settingsAlwaysShowGUIEditorButton = EditorGUILayout.Toggle(guiContent, settingsAlwaysShowGUIEditorButton);
             }
 
             EditorGUILayout.EndVertical();
@@ -349,23 +385,33 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
         private void OnSceneGUI(SceneView sceneView)
         {
-            if(!inUse) return;
+            // Prevent user from harm
+            if(Application.isPlaying) return;
 
-            // Do your drawing here using Handles.
             Handles.BeginGUI();
-            // Do your drawing here using GUI.
-            if(inUse)
+            // Show a GUI button top left sceneview for editor inUse toggle
+            if(settingsAlwaysShowGUIEditorButton)
             {
-                if(GUI.Button(new Rect(10, 10, 120, 20), "Disable Editor (F6)"))
+                s = "Disable SS3D (F6)"; if(!inUse) s = "Enable SS3D (F6)";
+                if(GUI.Button(new Rect(10, 10, 120, 20), s))
+                {
+                    inUse = !inUse;
+                }
+            }
+            else if(inUse)
+            {
+                if(GUI.Button(new Rect(10, 10, 120, 20), "Disable SS3D (F6)"))
                 {
                     inUse = false;
                 }
             }
             Handles.EndGUI();
-
+            
+            // Dont execute editor when not using
+            if(!inUse) return;
+            
             #region EIEM
 
-            //Cursor.SetCursor(Resources.Load<Texture2D>("d_eyeDropper.Large"), Vector2.zero, CursorMode.Auto); causes flikkering
             Event e = Event.current;
 
             if(e.type != EventType.MouseLeaveWindow) // Prevent Screen position out of view frustum Error
@@ -375,55 +421,73 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             else return;
             // move custom gameobject here to show mousepos as alternative of Gizmos
 
+            // Display mouse icon with current tool icon
+            switch(currentToolIndex)
+            {
+                case 0:
+                    EditorGUIUtility.AddCursorRect(new Rect(20, 20, sceneView.position.width, sceneView.position.height), MouseCursor.ArrowPlus);
+                    break;
+                case 1:
+                    EditorGUIUtility.AddCursorRect(new Rect(20, 20, sceneView.position.width, sceneView.position.height), MouseCursor.ArrowMinus);
+                    break;
+                default: break;
+            }
+
             // Get values
             var controlID = GUIUtility.GetControlID(FocusType.Passive);
             var eventType = e.GetTypeForControl(controlID);
 
-            // Left mouse button
-            if(e.button == 0)
+            // User input
+            if(e.isMouse)
             {
-                if(eventType == EventType.MouseUp)
+                // Left mouse button
+                if(e.button == 0)
                 {
-                    //Debug.Log("Mouse Up!");
-                    GUIUtility.hotControl = controlID;
-                }
-                else if(eventType == EventType.MouseDrag)
-                {
-                    //Debug.Log("Mouse Drag!");
-                    //e.Use();
-                    switch(currentToolIndex)
+                    if(eventType == EventType.MouseUp)
                     {
-                        case 0: PlaceItem(sceneView); break;
-                        case 1: RemoveItem(e, sceneView); break;
-                        default: Debug.LogError("toolindex"); break;
+                        GUIUtility.hotControl = controlID;
                     }
-                }
-                else if(eventType == EventType.MouseDown)
-                {
-                    //Debug.Log("Mouse Down!");
-                    GUIUtility.hotControl = 0;
-                    //e.Use();
-                    switch(currentToolIndex)
+                    else if(eventType == EventType.MouseDrag)
                     {
-                        case 0: PlaceItem(sceneView); break;
-                        case 1: RemoveItem(e, sceneView); break;
-                        default: Debug.LogError("toolindex"); break;
+                        switch(currentToolIndex)
+                        {
+                            case 0: 
+                                PlaceItem(sceneView);
+                                break;
+                            case 1: 
+                                RemoveItem(e, sceneView); 
+                                break;
+                            default: Debug.LogError("toolindex"); break;
+                        }
+                    }
+                    else if(eventType == EventType.MouseDown)
+                    {
+                        GUIUtility.hotControl = 0;
+                        switch(currentToolIndex)
+                        {
+                            case 0: PlaceItem(sceneView);
+                                break;
+                            case 1: RemoveItem(e, sceneView); 
+                                break;
+                            default: Debug.LogError("toolindex"); break;
+                        }
                     }
                 }
             }
-
-            // Key triggers
-            e = Event.current;
-            if(e.type == EventType.KeyDown)
+            else if(e.isKey)
             {
-                if(e.keyCode == KeyCode.F6) inUse = !inUse;
-                else if(e.keyCode == KeyCode.B)
+                // Shortcut keys
+                if(e.type == EventType.KeyDown)
                 {
-                    currentToolIndex = 0;
-                }
-                else if(e.keyCode == KeyCode.D)
-                {
-                    currentToolIndex = 1;
+                    if(e.keyCode == KeyCode.F6) inUse = !inUse;
+                    else if(e.keyCode == KeyCode.B)
+                    {
+                        currentToolIndex = 0;
+                    }
+                    else if(e.keyCode == KeyCode.D)
+                    {
+                        currentToolIndex = 1;
+                    }
                 }
             }
 
@@ -449,16 +513,18 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
             // Based on currentAssetViewIndex show button
             Color c = GUI.color;
+            GUIContent g;
             switch(currentAssetViewIndex)
             {
                 case 0:
                     // Grid button
-                    EditorGUILayout.BeginVertical();
+                    EditorGUILayout.BeginVertical(new GUILayoutOption[] { GUILayout.MaxWidth(editorAssetDisplaySize.x), GUILayout.MaxHeight(editorAssetDisplaySize.y + editorAssetTextDisplaySize.y) });
                     if(objectToCreate == item)
                     {
                         GUI.color = Color.green;
                     }
-                    if(GUILayout.Button(AssetPreview.GetAssetPreview(item), GUILayout.Width(editorAssetDisplaySize.x), GUILayout.Height(editorAssetDisplaySize.y)))
+                    g = new GUIContent("", AssetPreview.GetAssetPreview(item), item.name);
+                    if(GUILayout.Button(g, GUILayout.Width(editorAssetDisplaySize.x), GUILayout.Height(editorAssetDisplaySize.y)))
                     {
                         // Select button
                         if(objectToCreate == item)
@@ -473,18 +539,19 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         Repaint();
                     }
                     EditorStyles.label.wordWrap = true;
-                    EditorGUILayout.LabelField(item.name, EditorStyles.wordWrappedLabel);
+                    EditorGUILayout.LabelField(Truncate(item.name, 20), EditorStyles.helpBox);
                     GUI.color = c;
                     EditorGUILayout.EndVertical();
                     break;
                 case 1:
                     // Vertaclly layerd button
-                    EditorGUILayout.BeginHorizontal();                    
+                    EditorGUILayout.BeginHorizontal(); // TODO make entire horizontal bar clickable
                     if(objectToCreate == item)
                     {
                         GUI.color = Color.green;
                     }
-                    if(GUILayout.Button(AssetPreview.GetAssetPreview(item), GUILayout.Width(editorAssetDisplaySize.x), GUILayout.Height(editorAssetDisplaySize.y)))
+                    g = new GUIContent("", AssetPreview.GetAssetPreview(item), item.name);
+                    if(GUILayout.Button(g, GUILayout.Width(editorAssetDisplaySize.x), GUILayout.Height(editorAssetDisplaySize.y)))
                     {
                         // Select button
                         if(objectToCreate == item)
@@ -499,14 +566,39 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                         Repaint();
                     }
                     EditorStyles.label.wordWrap = true;
+                    GUI.skin.label.wordWrap = true;
                     EditorGUILayout.LabelField(item.name, EditorStyles.wordWrappedLabel);
                     GUI.color = c;
                     EditorGUILayout.EndHorizontal();
                     break;
-                default: Debug.LogError("Button building"); break;
+                case 2:
+                    // Vertaclly layerd button with name only
+                    if(objectToCreate == item)
+                    {
+                        GUI.color = Color.green;
+                    }
+                    GUI.skin.button.alignment = TextAnchor.MiddleLeft;
+                    if(GUILayout.Button(item.name))
+                    {
+                        // Select button
+                        if(objectToCreate == item)
+                        {
+                            // User clicked already selected button, deselect it
+                            objectToCreate = null;
+                        }
+                        else
+                        {
+                            objectToCreate = item;
+                        }
+                        Repaint();
+                    }
+                    GUI.skin.button.alignment = TextAnchor.MiddleCenter;
+                    GUI.color = c;
+                    break;
+                default: Debug.LogWarning("[SS3D] Something whent wrong with setting the current Asset view. Setting it on default 0."); currentAssetViewIndex = 0; break;
             }
 
-        }
+        } // TODO this can just be an gameobject field instead of string
 
         /// <summary>
         /// Switches the current toolindex of this and EIEM (execute in edit mode)
@@ -527,6 +619,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// </summary>
         private void UpdateZLayerVisability()
         {
+            if(parentOfItems == null) CreateParentItems();
             if(showAllZLayers)
             {
                 // Show all
@@ -543,6 +636,40 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     child.gameObject.SetActive(false);
                 }
                 parentOfItems.Find(zLayerIndex.ToString())?.gameObject.SetActive(true);
+            }
+        }
+
+        /// <summary>
+        /// Used as callback function when Editor Application changes mode
+        /// </summary>
+        private void PlayModeChanged(PlayModeStateChange playModeState)
+        {
+            switch(playModeState)
+            {
+                case PlayModeStateChange.EnteredEditMode:
+                    // Enable editor when play mode is over and user was using editor
+                    if(inUseBeforePlayMode)
+                    {
+                        inUse = true;
+                        inUseBeforePlayMode = false;
+                    }
+
+                    UpdateZLayerVisability();
+                    break;
+                case PlayModeStateChange.ExitingEditMode:
+                    break;
+                case PlayModeStateChange.EnteredPlayMode:
+                    // Disable editor when in play mode
+                    if(inUse)
+                    {
+                        inUse = false;
+                        inUseBeforePlayMode = true;
+                    }                    
+                    break;
+                case PlayModeStateChange.ExitingPlayMode:                    
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -609,17 +736,12 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 }
             }
             return false;
-        }
+        } // TODO replace this with a so grid system that keeps track of all placed objects positions
 
-
-
-        #region OnScene Functions
-
-        private void PlaceItem(SceneView scene)
+        private void PlaceItem(SceneView sceneView)
         {
-
-            if(PositionIsOccupied(scene)) return;
-
+            if(PositionIsOccupied(sceneView)) return;
+                        
             // Place item                
             if(objectToCreate != null)
             {
@@ -669,9 +791,21 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             }
         }
 
-
         #endregion
 
+
+        #region Static functions
+
+        /// <summary>
+        /// Limit string size
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="maxChars"></param>
+        /// <returns></returns>
+        public static string Truncate(string value, int maxChars)
+        {
+            return value.Length <= maxChars ? value : value.Substring(0, maxChars);
+        } // IMPROVE no need for it to be static
 
         #endregion
     }
@@ -682,3 +816,4 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 // Find assets https://docs.unity3d.com/2020.1/Documentation/ScriptReference/AssetDatabase.FindAssets.html
 // Get assets without resources folder https://gamedev.stackexchange.com/questions/160497/how-to-instantiate-prefab-outside-resources-folder/160537
 // Load asset at path https://docs.unity3d.com/2020.1/Documentation/ScriptReference/AssetDatabase.LoadAssetAtPath.html
+// Creating prefabs https://docs.unity3d.com/ScriptReference/PrefabUtility.InstantiatePrefab.html
