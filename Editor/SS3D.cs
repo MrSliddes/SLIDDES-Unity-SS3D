@@ -11,6 +11,19 @@ namespace SLIDDES.LevelEditor.SideScroller3D
     public class SS3D : EditorWindow
     {
         /// <summary>
+        /// The parent of all created items
+        /// </summary>
+        public Transform parentOfItems;
+        /// <summary>
+        /// Current mouse position of sceneView in world position
+        /// </summary>
+        public Vector3 mousePositionScene;
+        /// <summary>
+        /// Current mouse GUIPoint position
+        /// </summary>
+        public Vector3 mousePositionGUIPoint;
+
+        /// <summary>
         /// Is this toolbar currently inUse?
         /// </summary>
         private bool inUse;
@@ -22,13 +35,37 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// The current tool selected (draw, erase, etc)
         /// </summary>
         private int currentToolIndex;
-
         /// <summary>
         /// The object to create when clicking
         /// </summary>
         private Object objectToCreate;
+        /// <summary>
+        /// Show all z layer indexes
+        /// </summary>
+        private bool showAllZLayers;
+        private int searchbarResultAmount;
+        /// <summary>
+        /// The type index of view the user wants to display the assets in the editorwindow
+        /// </summary>
+        private int currentAssetViewIndex;
+        /// <summary>
+        /// Int used to check if user wants to increase or decrease z layer index
+        /// </summary>
+        private int currentZLayerIncreaseIndex;
+        /// <summary>
+        /// The Vector3.z int for placing objects in the scene
+        /// </summary>
+        private int zLayerIndex;
+        /// <summary>
+        /// If the editor should show a gui button toggle for the editor in the scene view even if inUse is false
+        /// </summary>
+        private bool settingsAlwaysShowGUIEditorButton = true;
+        /// <summary>
+        /// The label a asset needs to show up in the editor, default is "SS3D-Asset"
+        /// </summary>
+        private string settingsLabelName;
 
-        // Editor
+        // Editor Window
         private readonly int editorSpacePixels = 10;
         /// <summary>
         /// Contains the searchbar result
@@ -46,66 +83,12 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// Used for editor scrollbar
         /// </summary>
         private Vector2 editorScrollPosition;
+        private string s;
+        private Color c;
         
         private bool editorFoldoutTool = true;
         private bool editorFoldoutAssets = true;
         private bool editorFoldoutSettings;
-
-        /// <summary>
-        /// Show all z layer indexes
-        /// </summary>
-        private bool showAllZLayers;
-        private int searchbarResultAmount;
-        /// <summary>
-        /// The type index of view the user wants to display the assets in the editorwindow
-        /// </summary>
-        private int currentAssetViewIndex;
-        /// <summary>
-        /// Int used to check if user wants to increase or decrease z layer index
-        /// </summary>
-        private int currentZLayerIncreaseIndex;
-
-        /// <summary>
-        /// The Vector3.z int for placing objects in the scene
-        /// </summary>
-        private int zLayerIndex;
-        /// <summary>
-        /// The file directory of assets to be used
-        /// </summary>
-        private string assetsFileDirectory;
-        /// <summary>
-        /// Default reset file directory string
-        /// </summary>
-        private readonly string assetFileDirectoryDefault = "Assets/Prefabs/Level Editor";
-
-        /// <summary>
-        /// If the editor should show a gui button toggle for the editor in the scene view even if inUse is false
-        /// </summary>
-        private bool settingsAlwaysShowGUIEditorButton = true;
-
-        #region EIEM vars
-
-        /// <summary>
-        /// The parent of all created items
-        /// </summary>
-        public Transform parentOfItems;
-
-        /// <summary>
-        /// Current mouse position of sceneView in world position
-        /// </summary>
-        public Vector3 mousePositionScene;
-        /// <summary>
-        /// Current mouse GUIPoint position
-        /// </summary>
-        public Vector3 mousePositionGUIPoint;
-
-        #endregion
-
-        // Multiple use vars
-        private string s;
-        private Color c;
-        private GUIContent guiContent;
-        private GUIContent[] guiContents;
 
         [MenuItem("Window/SLIDDES/Level Editor/Side Scroller 3D", false)]
         public static void ShowWindow()
@@ -118,7 +101,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         private void Awake()
         {
             // Load EditorPrefs
-            assetsFileDirectory = EditorPrefs.GetString("ss3d_assetsFileDirectory", assetFileDirectoryDefault);
             currentAssetViewIndex = EditorPrefs.GetInt("ss3d_currentAssetViewIndex", 0);
         }
 
@@ -142,7 +124,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             EditorApplication.playModeStateChanged -= PlayModeChanged;
 
             // Save EditorPrefs
-            EditorPrefs.SetString("ss3d_assetsFileDirectory", assetsFileDirectory);
             EditorPrefs.SetInt("ss3d_currentAssetViewIndex", currentAssetViewIndex);
         }
 
@@ -195,8 +176,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 EditorGUILayout.Space(10);
 
                 // Tools select
-                GUIContent[] g = new GUIContent[] { new GUIContent("", Resources.Load<Texture2D>("d_Grid.PaintTool"), "Paint With Left Mouse Button (B)\nOnly Applies To Current Z Layer!"),
-                                                    new GUIContent("", Resources.Load<Texture2D>("d_Grid.EraserTool"), "Erase With Left Mouse Button (D)\nOnly Applies To Current Z Layer!" )};
+                GUIContent[] g = new GUIContent[] { new GUIContent("", EditorGUIUtility.IconContent("d_Grid.PaintTool").image, "Paint With Left Mouse Button (B)\nOnly Applies To Current Z Layer!"),
+                                                    new GUIContent("", EditorGUIUtility.IconContent("d_Grid.EraserTool").image, "Erase With Left Mouse Button (D)\nOnly Applies To Current Z Layer!" )};
                 NewToolIndex(GUILayout.Toolbar(currentToolIndex, g, GUILayout.MaxWidth(100)));
                 EditorGUILayout.Space();
 
@@ -207,8 +188,8 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 zLayerIndex = EditorGUILayout.IntField("Z", zLayerIndex);
                 if(zLayerIndex != prevLayerIndex) UpdateZLayerVisability();
                 // Z index arrow buttons
-                g = new GUIContent[] { new GUIContent("", Resources.Load<Texture2D>("d_tab_prev"), "-1 Z Layer"),
-                                        new GUIContent("", Resources.Load<Texture2D>("d_tab_next"), "+1 Z Layer" )};
+                g = new GUIContent[] { new GUIContent("", EditorGUIUtility.IconContent("d_tab_prev").image, "-1 Z Layer"),
+                                        new GUIContent("", EditorGUIUtility.IconContent("d_tab_next").image, "+1 Z Layer" )};
                 int prev = currentZLayerIncreaseIndex = 2;
                 currentZLayerIncreaseIndex = GUILayout.Toolbar(2, g, GUILayout.MaxWidth(50));
                 if(prev != currentZLayerIncreaseIndex)
@@ -219,7 +200,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                     UpdateZLayerVisability();
                 }
                 // Z index layer visablility
-                Texture2D tEye; if(showAllZLayers) tEye = Resources.Load<Texture2D>("d_scenevis_visible_hover"); else tEye = Resources.Load<Texture2D>("d_scenevis_hidden_hover");
+                Texture tEye; if(showAllZLayers) tEye = EditorGUIUtility.IconContent("d_scenevis_visible_hover").image; else tEye = EditorGUIUtility.IconContent("d_scenevis_hidden_hover").image;
                 if(GUILayout.Button(new GUIContent("", tEye, "Show All Z Layers Or Only Current Layer")))
                 {
                     showAllZLayers = !showAllZLayers;
@@ -228,8 +209,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 EditorGUILayout.Space();
 
                 // 2D view button
-                guiContent = new GUIContent("", Resources.Load<Texture2D>("d_SceneView2D"), "Toggle 2D View Scene");
-                if(GUILayout.Button(guiContent, new GUILayoutOption[] { GUILayout.MinHeight(20), GUILayout.MinWidth(20)}))
+                if(GUILayout.Button(new GUIContent("", EditorGUIUtility.IconContent("d_SceneView2D").image, "Toggle 2D View Scene"), new GUILayoutOption[] { GUILayout.MinHeight(20), GUILayout.MinWidth(20)}))
                 {
                     // This stuff apperently cannot auto run, disabled 
                     if(!GetWindow<SceneView>().in2DMode)
@@ -260,86 +240,83 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
             if(editorFoldoutAssets)
             {
-                // Get asset GUIDs from folder with type GameObject
-                if(assetsFileDirectory != null && AssetDatabase.IsValidFolder(assetsFileDirectory))
+                // Get assets labeld with SS3D-Asset              
+                string[] folderContent = AssetDatabase.FindAssets("l:" + settingsLabelName, new[] { "Assets" });
+                EditorGUILayout.BeginHorizontal();
+                // Searchbar
+                EditorGUIUtility.labelWidth = 80;
+                searchbarResult = EditorGUILayout.TextField("Search Asset", searchbarResult, GUILayout.Width(250));
+                // Toggle asset view
+                if(GUILayout.Button(new GUIContent("", EditorGUIUtility.IconContent("d_UnityEditor.SceneHierarchyWindow").image, "Change View Layout")))
                 {
-                    string[] folderContent = AssetDatabase.FindAssets("t:GameObject", new[] { assetsFileDirectory });
-
-                    EditorGUILayout.BeginHorizontal();
-                    // Searchbar
-                    EditorGUIUtility.labelWidth = 80;
-                    searchbarResult = EditorGUILayout.TextField("Search Asset", searchbarResult, GUILayout.Width(250));
-                    // Toggle asset view
-                    if(GUILayout.Button(new GUIContent("", Resources.Load<Texture2D>("d_UnityEditor.SceneHierarchyWindow"), "Change View Layout")))
-                    {
-                        currentAssetViewIndex++;
-                        if(currentAssetViewIndex > 2) currentAssetViewIndex = 0;
-                    }
-                    // Display loaded assets amount
-                    EditorGUILayout.LabelField("Loaded: " + folderContent.Length + " Assets", EditorStyles.helpBox);
-                    searchbarResultAmount = 0; // updated at CreateItemButton, not working, doesnt update after calc
-                    //EditorGUILayout.LabelField("Showing: " + searchbarResultAmount.ToString() + " Assets", EditorStyles.helpBox);
-                    GUILayout.FlexibleSpace();
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.Space(editorSpacePixels);
-
-                    // Display assets
-                    EditorGUILayout.BeginVertical();
-
-                    GameObject[] prefabs = new GameObject[folderContent.Length];
-
-                    switch(currentAssetViewIndex)
-                    {
-                        case 0:
-                            // Display as grid
-                            int maxRowAmount = Mathf.Clamp(Mathf.FloorToInt(Screen.width / editorAssetDisplaySize.x) - 2, 1, 99);
-                            int closer = maxRowAmount;
-                            bool closedLayout = true;
-                            // Get prefabs
-                            for(int i = 0; i < folderContent.Length; i++)
-                            {
-                                closer--;
-                                if(i % maxRowAmount == 0)
-                                {
-                                    EditorGUILayout.BeginHorizontal();
-                                    closedLayout = false;
-                                }
-                                prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
-                                CreateItemButton(folderContent[i]);
-                                if(closer <= 0)
-                                {
-                                    EditorGUILayout.EndHorizontal();
-                                    closer = maxRowAmount;
-                                    closedLayout = true;
-                                }
-                            }
-                            if(!closedLayout)
-                            {
-                                GUILayout.FlexibleSpace(); // Aligns object to the left
-                                EditorGUILayout.EndHorizontal();
-                            }
-                            break;
-                        case 1:
-                            // Display vertically
-                            for(int i = 0; i < folderContent.Length; i++)
-                            {
-                                prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
-                                CreateItemButton(folderContent[i]);
-                            }
-                            break;
-                        case 2:
-                            // Display vertically, name only
-                            for(int i = 0; i < folderContent.Length; i++)
-                            {
-                                prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
-                                CreateItemButton(folderContent[i]);
-                            }
-                            break;
-                        default: Debug.LogWarning("[SS3D] Something whent wrong with setting the current Asset view. Setting it on default 0."); currentAssetViewIndex = 0; break;
-                    }
-
-                    EditorGUILayout.EndVertical();
+                    currentAssetViewIndex++;
+                    if(currentAssetViewIndex > 2) currentAssetViewIndex = 0;
                 }
+                // Display loaded assets amount
+                EditorGUILayout.LabelField("Loaded: " + folderContent.Length + " Assets", EditorStyles.helpBox);
+                searchbarResultAmount = 0; // updated at CreateItemButton, not working, doesnt update after calc
+                //EditorGUILayout.LabelField("Showing: " + searchbarResultAmount.ToString() + " Assets", EditorStyles.helpBox);
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space(editorSpacePixels);
+
+                // Display assets
+                EditorGUILayout.BeginVertical();
+
+                GameObject[] prefabs = new GameObject[folderContent.Length];
+
+                switch(currentAssetViewIndex)
+                {
+                    case 0:
+                        // Display as grid
+                        int maxRowAmount = Mathf.Clamp(Mathf.FloorToInt(Screen.width / editorAssetDisplaySize.x) - 2, 1, 99);
+                        int closer = maxRowAmount;
+                        bool closedLayout = true;
+                        // Get prefabs
+                        for(int i = 0; i < folderContent.Length; i++)
+                        {
+                            closer--;
+                            if(i % maxRowAmount == 0)
+                            {
+                                EditorGUILayout.BeginHorizontal();
+                                closedLayout = false;
+                            }
+                            prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
+                            CreateItemButton(folderContent[i]);
+                            if(closer <= 0)
+                            {
+                                EditorGUILayout.EndHorizontal();
+                                closer = maxRowAmount;
+                                closedLayout = true;
+                            }
+                        }
+                        if(!closedLayout)
+                        {
+                            GUILayout.FlexibleSpace(); // Aligns object to the left
+                            EditorGUILayout.EndHorizontal();
+                        }
+                        break;
+                    case 1:
+                        // Display vertically
+                        for(int i = 0; i < folderContent.Length; i++)
+                        {
+                            prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
+                            CreateItemButton(folderContent[i]);
+                        }
+                        break;
+                    case 2:
+                        // Display vertically, name only
+                        for(int i = 0; i < folderContent.Length; i++)
+                        {
+                            prefabs[i] = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(folderContent[i]), typeof(GameObject)) as GameObject;
+                            CreateItemButton(folderContent[i]);
+                        }
+                        break;
+                    default: Debug.LogWarning("[SS3D] Something whent wrong with setting the current Asset view. Setting it on default 0."); currentAssetViewIndex = 0; break;
+                }
+
+                EditorGUILayout.EndVertical();
+                
             }
             EditorGUILayout.EndVertical();
             #endregion
@@ -351,28 +328,19 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
             if(editorFoldoutSettings)
             {
-                EditorGUIUtility.labelWidth = 300;
+                EditorGUIUtility.labelWidth = 300;              
 
-                // File directory
+                // Show GUI button
+                settingsAlwaysShowGUIEditorButton = EditorGUILayout.Toggle(new GUIContent("Always Show GUI Editor Button", ""), settingsAlwaysShowGUIEditorButton);
+                // Label name
                 EditorGUILayout.BeginHorizontal();
-                assetsFileDirectory = EditorGUILayout.DelayedTextField("Asset Folder", assetsFileDirectory);
-                if(string.IsNullOrEmpty(assetsFileDirectory) || string.IsNullOrWhiteSpace(assetsFileDirectory)) assetsFileDirectory = assetFileDirectoryDefault;
-                if(GUILayout.Button("Reset", GUILayout.Width(45)))
+                settingsLabelName = EditorGUILayout.TextField(new GUIContent("Asset Label To Search For", "The name of the label the asset needs to have in order to show up"), settingsLabelName);
+                if(GUILayout.Button(new GUIContent("", EditorGUIUtility.IconContent("Refresh").image, "Reset Values"), GUILayout.Width(30)))
                 {
-                    assetsFileDirectory = assetFileDirectoryDefault;
+                    settingsLabelName = "SS3D-Asset";
                     Repaint();
                 }
                 EditorGUILayout.EndHorizontal();
-                // Check if file directory exists
-                if(!AssetDatabase.IsValidFolder(assetsFileDirectory))
-                {
-                    // Display warning message
-                    EditorGUILayout.HelpBox("Folder not found at: " + assetsFileDirectory, MessageType.Error);
-                }
-
-                // Show GUI button
-                guiContent = new GUIContent("Always Show GUI Editor Button", "");
-                settingsAlwaysShowGUIEditorButton = EditorGUILayout.Toggle(guiContent, settingsAlwaysShowGUIEditorButton);
             }
 
             EditorGUILayout.EndVertical();

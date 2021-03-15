@@ -3,6 +3,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [1.0.0] (Alpha) - 2021-03-15
+### Added
+- String field in settings to change defalt label name ("SS3D-Asset")
+- Reset button to label name
+
+### Changed
+- Icons that are from unity are no longer loaded with Resourece.Load but instead with EditorGUIUtility.IconContent
+- Assets are now loaded from the entire unity project instead of a single folder if they are marked with the label "SS3D-Asset"
+- Cleaned up code SS3D
+
+### Removed
+- Setting Asset folder, no need for it since assets are now loaded with labels
+- Editor/Resources unity icons since they are now loaded with EditorGUIUtility.IconContent
+
 ## [0.0.3] - 2021-03-05
 ### Added
 - Mouse now displays icon of current tool being used
