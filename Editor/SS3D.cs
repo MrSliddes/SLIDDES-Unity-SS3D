@@ -13,15 +13,19 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// <summary>
         /// The parent of all created items
         /// </summary>
-        public Transform parentOfItems;
+        private Transform parentOfItems;
         /// <summary>
         /// Current mouse position of sceneView in world position
         /// </summary>
-        public Vector3 mousePositionScene;
+        private Vector3 mousePositionScene;
         /// <summary>
         /// Current mouse GUIPoint position
         /// </summary>
-        public Vector3 mousePositionGUIPoint;
+        private Vector3 mousePositionGUIPoint;
+        /// <summary>
+        /// The object to create when clicking
+        /// </summary>
+        private Object objectToCreate;
 
         /// <summary>
         /// Is this toolbar currently inUse?
@@ -35,10 +39,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         /// The current tool selected (draw, erase, etc)
         /// </summary>
         private int currentToolIndex;
-        /// <summary>
-        /// The object to create when clicking
-        /// </summary>
-        private Object objectToCreate;
         /// <summary>
         /// Show all z layer indexes
         /// </summary>
