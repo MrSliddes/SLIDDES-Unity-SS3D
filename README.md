@@ -35,11 +35,11 @@ The label should be called "SS3D-Asset". If you would like the label to be named
 For more information on how to add a label to an Asset:
 https://answers.unity.com/questions/154636/ability-to-add-labels-to-assets-in-unity-34.html
 
+For testing purposes you can create a default 3D Object > Cube, place it in the project folder as a Prefab, and label it "SS3D-Asset".
+
 Once the Assets you want appear in the editor you can click on them to select them as your current brush output. The selected Asset will turn green. To start painting make sure the "In Use" button is green, you selected the brush and changed the scene view to 2D (or pressed the 2D button in the Tools foldout). Hold or press the left mouse button to start creating Hierarchy GameObjects.
 
 The editor uses Unity Undo/Redo so you can press Ctrl+z or Ctrl+y. To erase objects you can press the eraser button in the Tools foldout and then press or hold the left mouse button over the objects you want to delete.
-
-
 
 ## Other
 For more information or contact, go to https://sliddes.com/
