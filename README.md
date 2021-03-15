@@ -16,7 +16,7 @@ https://docs.unity3d.com/Manual/upm-ui-giturl.html
 
 ## How to use it
 To access the editor window inside unity goto Window > SLIDDES > Level Editor > SS3D
-![img access editor window](https://github.com/mrsliddes/SLIDDES-Unity-SS3D/tree/Github-Info/HowToUse_0.png)
+![Img How To access](https://github.com/mrsliddes/SLIDDES-Unity-SS3D/blob/Github-Info/HowToUse_0.png)
 
 ## Other
 For more information or contact, go to https://sliddes.com/
