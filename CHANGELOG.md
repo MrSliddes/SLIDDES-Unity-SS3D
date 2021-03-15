@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Icons that are from unity are no longer loaded with Resourece.Load but instead with EditorGUIUtility.IconContent
 - Assets are now loaded from the entire unity project instead of a single folder if they are marked with the label "SS3D-Asset"
 - Cleaned up code SS3D
+- README to be more updated and insightfull
 
 ### Removed
 - Setting Asset folder, no need for it since assets are now loaded with labels
