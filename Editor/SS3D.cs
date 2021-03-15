@@ -98,13 +98,14 @@ namespace SLIDDES.LevelEditor.SideScroller3D
             window.minSize = new Vector2(500, 150);
         }
 
+
+        #region Awake, OnEnable, OnDestroy
         private void Awake()
         {
             // Load EditorPrefs
             currentAssetViewIndex = EditorPrefs.GetInt("ss3d_currentAssetViewIndex", 0);
+            settingsLabelName = EditorPrefs.GetString("ss3d_settingsLabelName", "SS3D-Asset");
         }
-
-        #region OnEnable, OnDestroy, OnFocus
 
         private void OnEnable()
         {
@@ -125,6 +126,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
             // Save EditorPrefs
             EditorPrefs.SetInt("ss3d_currentAssetViewIndex", currentAssetViewIndex);
+            EditorPrefs.SetString("ss3d_settingsLabelName", settingsLabelName);
         }
 
         #endregion
@@ -643,7 +645,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
 
         #endregion
 
-        #region EIEM Functions
+        #region EIEM Functions (Execute In Edit Mode)
 
         private void CreateParentItems()
         {
@@ -704,7 +706,7 @@ namespace SLIDDES.LevelEditor.SideScroller3D
                 }
             }
             return false;
-        } // TODO replace this with a so grid system that keeps track of all placed objects positions
+        } // TODO replace this with a SO grid system that keeps track of all placed objects positions
 
         private void PlaceItem(SceneView sceneView)
         {
@@ -760,7 +762,6 @@ namespace SLIDDES.LevelEditor.SideScroller3D
         }
 
         #endregion
-
 
         #region Static functions
 
